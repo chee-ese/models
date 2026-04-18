@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>iPad 3D Loader</title>
+    <style>
+        /* Prevents iPad bounce scrolling */
+        html, body { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            overflow: hidden; background: #000; position: fixed; 
+            touch-action: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        #loading-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            transition: opacity 2s ease-in-out;
+        }
+
+        #bar-container {
+            width: 60%; max-width: 300px; height: 2px;
+            background: #222; margin-top: 40px; border-radius: 4px;
+            overflow: hidden;
+        }
+
+        #bar-fill {
+            width: 0%; height: 100%;
+            background: #fff; box-shadow: 0 0 15px rgba(255,255,255,0.8);
+        }
+
+        #status {
+            margin-top: 20px; color: #666; font-size: 10px;
+            letter-spacing: 4px; text-transform: uppercase;
+        }
+
+        .hidden { opacity: 0; pointer-events: none; }
+        
+        #final-text {
+            position: absolute; width: 100%; text-align: center;
+            top: 50%; color: white; transform: translateY(-50%);
+            font-weight: 200; letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading-screen">
+        <div id="canvas-container"></div>
+        <div id="bar-container"><div id="bar-fill"></div></div>
+        <div id="status">Syncing Assets...</div>
+    </div>
+
+    <div id="final-text"><h1>SPHERE LOADED</h1></div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // Scene Setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio); // Sharp rendering on iPad Retina displays
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // White Sphere
+        const geometry = new THREE.SphereGeometry(1.5, 64, 64);
+        const material = new THREE.MeshStandardMaterial({ 
+            color: 0xffffff, 
+            roughness: 0.1, 
+            metalness: 0.4 
+        });
+        const sphere = new THREE.Mesh(geometry, material);
+        scene.add(sphere);
+
+        // Lighting
+        const light1 = new THREE.PointLight(0xffffff, 80);
+        light1.position.set(5, 5, 5);
+        const light2 = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(light1, light2);
+
+        camera.position.z = 5;
+
+        // 20 Second Logic
+        const duration = 20000;
+        const startTime = Date.now();
+        
+        function update() {
+            const now = Date.now();
+            const elapsed = now - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+
+            document.getElementById('bar-fill').style.width = (progress * 100) + "%";
+
+            if (progress < 1) {
+                requestAnimationFrame(update);
+            } else {
+                document.getElementById('status').innerText = "COMPLETE";
+                setTimeout(() => {
+                    document.getElementById('loading-screen').classList.add('hidden');
+                }, 800);
+            }
+        }
+
+        // Animation & iPad Interaction
+        let mouseX = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+            sphere.rotation.y += 0.005 + (mouseX * 0.05); // Sphere reacts to touch
+            sphere.rotation.x += 0.002;
+            renderer.render(scene, camera);
+        }
+
+        // Touch tracking for iPad
+        window.addEventListener('touchmove', (e) => {
+            mouseX = (e.touches[0].clientX / window.innerWidth) - 0.5;
+        }, { passive: true });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        update();
+        animate();
+    </script>
+</body>
+</html>
