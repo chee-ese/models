@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sequential Loading</title>
+    <title>3D Sequential Loader</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: white; font-family: sans-serif; }
         
-        #loading-screen {
+        #ui-layer {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
             background: white;
@@ -16,16 +16,16 @@
             justify-content: center;
             align-items: center;
             z-index: 10;
-            transition: opacity 0.5s ease;
         }
 
+        /* Spinning Sphere */
         #sphere {
-            width: 80px;
-            height: 80px;
+            width: 60px;
+            height: 60px;
             background: white;
             border-radius: 50%;
-            box-shadow: inset -10px -10px 20px rgba(0,0,0,0.1), 2px 2px 5px rgba(0,0,0,0.05);
-            margin-bottom: 30px;
+            box-shadow: inset -8px -8px 15px rgba(0,0,0,0.1), 1px 1px 5px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
             animation: spin 2s linear infinite;
         }
 
@@ -34,39 +34,35 @@
             to { transform: rotateY(360deg); }
         }
 
-        #bar-container {
-            width: 200px;
-            height: 8px;
-            border: 1px solid #eee;
-            border-radius: 10px;
-            background: #fafafa;
-            overflow: hidden;
+        /* Progress Bar */
+        #bar-box {
+            width: 240px;
+            height: 12px;
+            border: 2px solid #333;
+            padding: 2px;
+            border-radius: 4px;
         }
 
-        #bar {
+        #bar-fill {
             width: 0%;
             height: 100%;
-            background: #4CAF50;
+            background: #00ff00;
         }
 
-        #status-text {
+        #status {
             margin-top: 15px;
-            color: #888;
-            font-size: 14px;
             font-weight: bold;
-            text-transform: uppercase;
+            color: #333;
             letter-spacing: 1px;
         }
     </style>
 </head>
 <body>
 
-    <div id="loading-screen">
+    <div id="ui-layer">
         <div id="sphere"></div>
-        <div id="bar-container">
-            <div id="bar"></div>
-        </div>
-        <div id="status-text">Loading Assets...</div>
+        <div id="bar-box"><div id="bar-fill"></div></div>
+        <div id="status">INITIALIZING...</div>
     </div>
 
     <script type="importmap">
@@ -80,38 +76,36 @@
     <script type="module">
         import * as THREE from 'three';
 
-        const bar = document.getElementById('bar');
-        const statusText = document.getElementById('status-text');
-        const loader = document.getElementById('loading-screen');
-        
-        let progress = 0;
-        const duration = 8000; 
-        const intervalTime = 50; 
-        const increment = (intervalTime / duration) * 100;
+        const fill = document.getElementById('bar-fill');
+        const status = document.getElementById('status');
+        const ui = document.getElementById('ui-layer');
 
-        const loadingTimer = setInterval(() => {
-            progress += increment;
-            bar.style.width = Math.min(progress, 100) + '%';
+        // 1. Loading Logic (8 Seconds)
+        let startTime = Date.now();
+        const duration = 8000;
 
-            if (progress >= 100) {
-                clearInterval(loadingTimer);
+        function updateLoading() {
+            let elapsed = Date.now() - startTime;
+            let progress = Math.min((elapsed / duration) * 100, 100);
+            fill.style.width = progress + '%';
+
+            if (progress < 100) {
+                requestAnimationFrame(updateLoading);
+            } else {
+                // Transition Step
+                status.innerText = "SPHERE LOADED";
+                status.style.color = "#00aa00";
                 
-                // Update text after 8 seconds
-                statusText.innerText = "Sphere Loaded";
-                statusText.style.color = "#4CAF50";
-
-                // Short delay to show the message before showing the cube
                 setTimeout(() => {
-                    loader.style.opacity = '0';
-                    setTimeout(() => {
-                        loader.style.display = 'none';
-                        initGame();
-                    }, 500);
-                }, 1500);
+                    ui.style.display = 'none';
+                    initWorld();
+                }, 1500); // Show "Sphere Loaded" for 1.5s
             }
-        }, intervalTime);
+        }
+        updateLoading();
 
-        function initGame() {
+        // 2. 3D World Logic
+        function initWorld() {
             const scene = new THREE.Scene();
             scene.background = new THREE.Color(0xffffff);
 
@@ -120,56 +114,52 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            const light = new THREE.AmbientLight(0xffffff, 1.5);
-            scene.add(light);
-
             const size = 64;
-            const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
-            const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-
-            // Calculate total blocks for the hollow shell
-            // Formula: Outer Volume - Inner Volume
-            const totalBlocks = Math.pow(size, 3) - Math.pow(size - 2, 3);
-            
-            // Using InstancedMesh for performance
-            const instancedMesh = new THREE.InstancedMesh(cubeGeo, material, totalBlocks);
-            const dummy = new THREE.Object3D();
-            let count = 0;
-
             const offset = size / 2;
+
+            // Geometry for the individual small cubes
+            const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+            const cubeMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+
+            // Geometry for the black outlines
+            const edgeGeo = new THREE.EdgesGeometry(cubeGeo);
+            const edgeMat = new THREE.LineBasicMaterial({ color: 0x000000 });
+
+            // We use InstancedMesh for the green cubes and the black outlines 
+            // so the iPad can handle 24,000+ objects easily.
+            const totalBlocks = Math.pow(size, 3) - Math.pow(size - 2, 3);
+            const meshInstances = new THREE.InstancedMesh(cubeGeo, cubeMat, totalBlocks);
+            const edgeInstances = new THREE.InstancedLineSegments(edgeGeo, edgeMat, totalBlocks);
+
+            let i = 0;
+            const dummy = new THREE.Object3D();
 
             for (let x = 0; x < size; x++) {
                 for (let y = 0; y < size; y++) {
                     for (let z = 0; z < size; z++) {
-                        // Check if block is on the outer shell
-                        if (x === 0 || x === size - 1 || 
-                            y === 0 || y === size - 1 || 
-                            z === 0 || z === size - 1) {
-                            
+                        // Only build the shell (hollow inside)
+                        if (x === 0 || x === size - 1 || y === 0 || y === size - 1 || z === 0 || z === size - 1) {
                             dummy.position.set(x - offset, y - offset, z - offset);
                             dummy.updateMatrix();
-                            instancedMesh.setMatrixAt(count++, dummy.matrix);
+                            meshInstances.setMatrixAt(i, dummy.matrix);
+                            edgeInstances.setMatrixAt(i, dummy.matrix);
+                            i++;
                         }
                     }
                 }
             }
-            scene.add(instancedMesh);
 
-            // Create outlines (Wireframe for the whole instanced group is tricky, 
-            // so we'll use one large wireframe cube for the effect)
-            const outlineGeo = new THREE.BoxGeometry(size, size, size);
-            const edges = new THREE.EdgesGeometry(outlineGeo);
-            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000 }));
-            scene.add(line);
+            scene.add(meshInstances);
+            scene.add(edgeInstances);
 
-            // Position Camera inside the center "air"
-            camera.position.set(0, 0, 5); 
+            // Player position: Center of the hollow "air"
+            camera.position.set(0, 0, 0.1);
 
             function animate() {
                 requestAnimationFrame(animate);
-                // Gentle rotation to see the hollow walls
-                scene.rotation.y += 0.002;
-                scene.rotation.x += 0.001;
+                // Slow rotation so you can see the cube walls move around you
+                scene.rotation.y += 0.003;
+                scene.rotation.x += 0.002;
                 renderer.render(scene, camera);
             }
             animate();
