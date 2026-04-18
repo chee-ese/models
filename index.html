@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>20s Loading Sphere</title>
+    <title>8s Loading Sphere</title>
     <style>
         body, html { 
             margin: 0; padding: 0; width: 100%; height: 100%; 
@@ -11,7 +11,6 @@
             touch-action: none; font-family: -apple-system, system-ui, sans-serif;
         }
 
-        /* The Loading Container */
         #loading-screen {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -21,7 +20,7 @@
             justify-content: center;
             align-items: center;
             z-index: 100;
-            transition: opacity 1s ease-in-out;
+            transition: opacity 0.8s ease-in-out;
         }
 
         #bar-container {
@@ -40,7 +39,6 @@
             font-weight: 500; letter-spacing: 1px;
         }
 
-        /* The "Sphere Loaded" message */
         #final-message {
             position: fixed;
             top: 50%; left: 50%;
@@ -50,7 +48,7 @@
             font-weight: 700;
             letter-spacing: 5px;
             text-transform: uppercase;
-            opacity: 0; /* Hidden by default */
+            opacity: 0;
             transition: opacity 1s ease-in-out;
             pointer-events: none;
             z-index: 10;
@@ -65,7 +63,7 @@
     <div id="loading-screen">
         <div id="canvas-container"></div>
         <div id="bar-container"><div id="bar-fill"></div></div>
-        <div id="timer-text">Initializing: 0s</div>
+        <div id="timer-text">Loading: 0s</div>
     </div>
 
     <div id="final-message">Sphere Loaded</div>
@@ -87,26 +85,21 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        // --- SPINNING WHITE SPHERE ---
+        // --- THE SPHERE ---
         const geometry = new THREE.SphereGeometry(1.5, 64, 64);
-        const material = new THREE.MeshStandardMaterial({ 
-            color: 0xfafafa, 
-            roughness: 0.2, 
-            metalness: 0.1 
-        });
+        const material = new THREE.MeshStandardMaterial({ color: 0xfafafa, roughness: 0.2, metalness: 0.1 });
         const sphere = new THREE.Mesh(geometry, material);
         scene.add(sphere);
 
         // --- LIGHTS ---
         const mainLight = new THREE.DirectionalLight(0xffffff, 2.5);
         mainLight.position.set(5, 10, 7);
-        scene.add(mainLight);
-        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        scene.add(mainLight, new THREE.AmbientLight(0xffffff, 0.6));
 
         camera.position.z = 5;
 
-        // --- 20 SECOND LOGIC ---
-        const duration = 20000; 
+        // --- 8 SECOND LOADING LOGIC ---
+        const duration = 8000; // Changed to 8 seconds
         const startTime = Date.now();
         const barFill = document.getElementById('bar-fill');
         const timerText = document.getElementById('timer-text');
@@ -121,24 +114,23 @@
 
             barFill.style.width = (progress * 100) + "%";
             
-            if (secondsLeft <= 20) {
-                timerText.innerText = `Loading: ${secondsLeft}s / 20s`;
+            if (secondsLeft <= 8) {
+                timerText.innerText = `Loading: ${secondsLeft}s / 8s`;
             }
 
             if (progress < 1) {
                 requestAnimationFrame(updateLoading);
             } else {
-                // ACTIONS WHEN LOADED:
                 timerText.innerText = "Complete";
-                loadingScreen.classList.add('hidden'); // Fade out bar/timer
-                finalMessage.classList.add('visible'); // Fade in "Sphere Loaded"
+                loadingScreen.classList.add('hidden');
+                finalMessage.classList.add('visible');
             }
         }
 
         // --- ANIMATION ---
         function animate() {
             requestAnimationFrame(animate);
-            sphere.rotation.y += 0.025; // Constant spin
+            sphere.rotation.y += 0.03; // Slightly faster spin
             sphere.rotation.x += 0.01;
             renderer.render(scene, camera);
         }
