@@ -2,147 +2,184 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>8s Loading Sphere</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sequential Loading</title>
     <style>
-        body, html { 
-            margin: 0; padding: 0; width: 100%; height: 100%; 
-            overflow: hidden; background: #ffffff; position: fixed; 
-            touch-action: none; font-family: -apple-system, system-ui, sans-serif;
-        }
-
+        body { margin: 0; overflow: hidden; background-color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
         #loading-screen {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: #ffffff;
+            background: white;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            z-index: 100;
-            transition: opacity 0.8s ease-in-out;
+            z-index: 10;
+            transition: opacity 0.5s ease;
+        }
+
+        #sphere {
+            width: 80px;
+            height: 80px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: inset -10px -10px 20px rgba(0,0,0,0.1), 2px 2px 5px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotateY(0deg); }
+            to { transform: rotateY(360deg); }
         }
 
         #bar-container {
-            width: 70%; max-width: 300px; height: 4px;
-            background: #eeeeee; margin-top: 20px; border-radius: 10px;
+            width: 200px;
+            height: 8px;
+            border: 1px solid #eee;
+            border-radius: 10px;
+            background: #fafafa;
             overflow: hidden;
         }
 
-        #bar-fill {
-            width: 0%; height: 100%;
-            background: #333333;
+        #bar {
+            width: 0%;
+            height: 100%;
+            background: #4CAF50;
         }
 
-        #timer-text {
-            margin-top: 15px; color: #888; font-size: 12px;
-            font-weight: 500; letter-spacing: 1px;
-        }
-
-        #final-message {
-            position: fixed;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            color: #333;
-            font-size: 24px;
-            font-weight: 700;
-            letter-spacing: 5px;
+        #status-text {
+            margin-top: 15px;
+            color: #888;
+            font-size: 14px;
+            font-weight: bold;
             text-transform: uppercase;
-            opacity: 0;
-            transition: opacity 1s ease-in-out;
-            pointer-events: none;
-            z-index: 10;
+            letter-spacing: 1px;
         }
-
-        .hidden { opacity: 0 !important; pointer-events: none; }
-        .visible { opacity: 1 !important; }
     </style>
 </head>
 <body>
 
     <div id="loading-screen">
-        <div id="canvas-container"></div>
-        <div id="bar-container"><div id="bar-fill"></div></div>
-        <div id="timer-text">Loading: 0s</div>
+        <div id="sphere"></div>
+        <div id="bar-container">
+            <div id="bar"></div>
+        </div>
+        <div id="status-text">Loading Assets...</div>
     </div>
 
-    <div id="final-message">Sphere Loaded</div>
-
     <script type="importmap">
-        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+            }
+        }
     </script>
 
     <script type="module">
         import * as THREE from 'three';
 
-        // --- SCENE SETUP ---
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xffffff);
-
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.getElementById('canvas-container').appendChild(renderer.domElement);
-
-        // --- THE SPHERE ---
-        const geometry = new THREE.SphereGeometry(1.5, 64, 64);
-        const material = new THREE.MeshStandardMaterial({ color: 0xfafafa, roughness: 0.2, metalness: 0.1 });
-        const sphere = new THREE.Mesh(geometry, material);
-        scene.add(sphere);
-
-        // --- LIGHTS ---
-        const mainLight = new THREE.DirectionalLight(0xffffff, 2.5);
-        mainLight.position.set(5, 10, 7);
-        scene.add(mainLight, new THREE.AmbientLight(0xffffff, 0.6));
-
-        camera.position.z = 5;
-
-        // --- 8 SECOND LOADING LOGIC ---
-        const duration = 8000; // Changed to 8 seconds
-        const startTime = Date.now();
-        const barFill = document.getElementById('bar-fill');
-        const timerText = document.getElementById('timer-text');
-        const loadingScreen = document.getElementById('loading-screen');
-        const finalMessage = document.getElementById('final-message');
+        const bar = document.getElementById('bar');
+        const statusText = document.getElementById('status-text');
+        const loader = document.getElementById('loading-screen');
         
-        function updateLoading() {
-            const now = Date.now();
-            const elapsed = now - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            const secondsLeft = Math.floor(elapsed / 1000);
+        let progress = 0;
+        const duration = 8000; 
+        const intervalTime = 50; 
+        const increment = (intervalTime / duration) * 100;
 
-            barFill.style.width = (progress * 100) + "%";
-            
-            if (secondsLeft <= 8) {
-                timerText.innerText = `Loading: ${secondsLeft}s / 8s`;
+        const loadingTimer = setInterval(() => {
+            progress += increment;
+            bar.style.width = Math.min(progress, 100) + '%';
+
+            if (progress >= 100) {
+                clearInterval(loadingTimer);
+                
+                // Update text after 8 seconds
+                statusText.innerText = "Sphere Loaded";
+                statusText.style.color = "#4CAF50";
+
+                // Short delay to show the message before showing the cube
+                setTimeout(() => {
+                    loader.style.opacity = '0';
+                    setTimeout(() => {
+                        loader.style.display = 'none';
+                        initGame();
+                    }, 500);
+                }, 1500);
             }
+        }, intervalTime);
 
-            if (progress < 1) {
-                requestAnimationFrame(updateLoading);
-            } else {
-                timerText.innerText = "Complete";
-                loadingScreen.classList.add('hidden');
-                finalMessage.classList.add('visible');
-            }
-        }
+        function initGame() {
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xffffff);
 
-        // --- ANIMATION ---
-        function animate() {
-            requestAnimationFrame(animate);
-            sphere.rotation.y += 0.03; // Slightly faster spin
-            sphere.rotation.x += 0.01;
-            renderer.render(scene, camera);
-        }
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+            document.body.appendChild(renderer.domElement);
 
-        updateLoading();
-        animate();
+            const light = new THREE.AmbientLight(0xffffff, 1.5);
+            scene.add(light);
+
+            const size = 64;
+            const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+
+            // Calculate total blocks for the hollow shell
+            // Formula: Outer Volume - Inner Volume
+            const totalBlocks = Math.pow(size, 3) - Math.pow(size - 2, 3);
+            
+            // Using InstancedMesh for performance
+            const instancedMesh = new THREE.InstancedMesh(cubeGeo, material, totalBlocks);
+            const dummy = new THREE.Object3D();
+            let count = 0;
+
+            const offset = size / 2;
+
+            for (let x = 0; x < size; x++) {
+                for (let y = 0; y < size; y++) {
+                    for (let z = 0; z < size; z++) {
+                        // Check if block is on the outer shell
+                        if (x === 0 || x === size - 1 || 
+                            y === 0 || y === size - 1 || 
+                            z === 0 || z === size - 1) {
+                            
+                            dummy.position.set(x - offset, y - offset, z - offset);
+                            dummy.updateMatrix();
+                            instancedMesh.setMatrixAt(count++, dummy.matrix);
+                        }
+                    }
+                }
+            }
+            scene.add(instancedMesh);
+
+            // Create outlines (Wireframe for the whole instanced group is tricky, 
+            // so we'll use one large wireframe cube for the effect)
+            const outlineGeo = new THREE.BoxGeometry(size, size, size);
+            const edges = new THREE.EdgesGeometry(outlineGeo);
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000 }));
+            scene.add(line);
+
+            // Position Camera inside the center "air"
+            camera.position.set(0, 0, 5); 
+
+            function animate() {
+                requestAnimationFrame(animate);
+                // Gentle rotation to see the hollow walls
+                scene.rotation.y += 0.002;
+                scene.rotation.x += 0.001;
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
     </script>
 </body>
 </html>
