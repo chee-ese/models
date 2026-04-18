@@ -3,50 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>iPad 3D Loader</title>
+    <title>20s Loading Sphere</title>
     <style>
-        /* Prevents iPad bounce scrolling */
-        html, body { 
+        body, html { 
             margin: 0; padding: 0; width: 100%; height: 100%; 
-            overflow: hidden; background: #000; position: fixed; 
-            touch-action: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden; background: #ffffff; position: fixed; 
+            touch-action: none; font-family: -apple-system, system-ui, sans-serif;
         }
 
+        /* The Loading Container */
         #loading-screen {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: #000;
+            background: #ffffff;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             z-index: 100;
-            transition: opacity 2s ease-in-out;
+            transition: opacity 1s ease-in-out;
         }
 
         #bar-container {
-            width: 60%; max-width: 300px; height: 2px;
-            background: #222; margin-top: 40px; border-radius: 4px;
+            width: 70%; max-width: 300px; height: 4px;
+            background: #eeeeee; margin-top: 20px; border-radius: 10px;
             overflow: hidden;
         }
 
         #bar-fill {
             width: 0%; height: 100%;
-            background: #fff; box-shadow: 0 0 15px rgba(255,255,255,0.8);
+            background: #333333;
         }
 
-        #status {
-            margin-top: 20px; color: #666; font-size: 10px;
-            letter-spacing: 4px; text-transform: uppercase;
+        #timer-text {
+            margin-top: 15px; color: #888; font-size: 12px;
+            font-weight: 500; letter-spacing: 1px;
         }
 
-        .hidden { opacity: 0; pointer-events: none; }
-        
-        #final-text {
-            position: absolute; width: 100%; text-align: center;
-            top: 50%; color: white; transform: translateY(-50%);
-            font-weight: 200; letter-spacing: 2px;
+        /* The "Sphere Loaded" message */
+        #final-message {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #333;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            opacity: 0; /* Hidden by default */
+            transition: opacity 1s ease-in-out;
+            pointer-events: none;
+            z-index: 10;
         }
+
+        .hidden { opacity: 0 !important; pointer-events: none; }
+        .visible { opacity: 1 !important; }
     </style>
 </head>
 <body>
@@ -54,10 +65,10 @@
     <div id="loading-screen">
         <div id="canvas-container"></div>
         <div id="bar-container"><div id="bar-fill"></div></div>
-        <div id="status">Syncing Assets...</div>
+        <div id="timer-text">Initializing: 0s</div>
     </div>
 
-    <div id="final-text"><h1>SPHERE LOADED</h1></div>
+    <div id="final-message">Sphere Loaded</div>
 
     <script type="importmap">
         { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
@@ -66,66 +77,71 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // Scene Setup
+        // --- SCENE SETUP ---
         const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff);
+
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setPixelRatio(window.devicePixelRatio); // Sharp rendering on iPad Retina displays
+        renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        // White Sphere
+        // --- SPINNING WHITE SPHERE ---
         const geometry = new THREE.SphereGeometry(1.5, 64, 64);
         const material = new THREE.MeshStandardMaterial({ 
-            color: 0xffffff, 
-            roughness: 0.1, 
-            metalness: 0.4 
+            color: 0xfafafa, 
+            roughness: 0.2, 
+            metalness: 0.1 
         });
         const sphere = new THREE.Mesh(geometry, material);
         scene.add(sphere);
 
-        // Lighting
-        const light1 = new THREE.PointLight(0xffffff, 80);
-        light1.position.set(5, 5, 5);
-        const light2 = new THREE.AmbientLight(0xffffff, 0.4);
-        scene.add(light1, light2);
+        // --- LIGHTS ---
+        const mainLight = new THREE.DirectionalLight(0xffffff, 2.5);
+        mainLight.position.set(5, 10, 7);
+        scene.add(mainLight);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
         camera.position.z = 5;
 
-        // 20 Second Logic
-        const duration = 20000;
+        // --- 20 SECOND LOGIC ---
+        const duration = 20000; 
         const startTime = Date.now();
+        const barFill = document.getElementById('bar-fill');
+        const timerText = document.getElementById('timer-text');
+        const loadingScreen = document.getElementById('loading-screen');
+        const finalMessage = document.getElementById('final-message');
         
-        function update() {
+        function updateLoading() {
             const now = Date.now();
             const elapsed = now - startTime;
             const progress = Math.min(elapsed / duration, 1);
+            const secondsLeft = Math.floor(elapsed / 1000);
 
-            document.getElementById('bar-fill').style.width = (progress * 100) + "%";
+            barFill.style.width = (progress * 100) + "%";
+            
+            if (secondsLeft <= 20) {
+                timerText.innerText = `Loading: ${secondsLeft}s / 20s`;
+            }
 
             if (progress < 1) {
-                requestAnimationFrame(update);
+                requestAnimationFrame(updateLoading);
             } else {
-                document.getElementById('status').innerText = "COMPLETE";
-                setTimeout(() => {
-                    document.getElementById('loading-screen').classList.add('hidden');
-                }, 800);
+                // ACTIONS WHEN LOADED:
+                timerText.innerText = "Complete";
+                loadingScreen.classList.add('hidden'); // Fade out bar/timer
+                finalMessage.classList.add('visible'); // Fade in "Sphere Loaded"
             }
         }
 
-        // Animation & iPad Interaction
-        let mouseX = 0;
+        // --- ANIMATION ---
         function animate() {
             requestAnimationFrame(animate);
-            sphere.rotation.y += 0.005 + (mouseX * 0.05); // Sphere reacts to touch
-            sphere.rotation.x += 0.002;
+            sphere.rotation.y += 0.025; // Constant spin
+            sphere.rotation.x += 0.01;
             renderer.render(scene, camera);
         }
-
-        // Touch tracking for iPad
-        window.addEventListener('touchmove', (e) => {
-            mouseX = (e.touches[0].clientX / window.innerWidth) - 0.5;
-        }, { passive: true });
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -133,7 +149,7 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        update();
+        updateLoading();
         animate();
     </script>
 </body>
