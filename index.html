@@ -3,113 +3,142 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sphere to Voxel Cube</title>
+    <title>3D Sphere Loader</title>
     <style>
-        body { margin: 0; background-color: #1a1a1a; overflow: hidden; }
-        #sphere {
+        :root {
+            --bg-color: #0a0a0a;
+            --primary-sphere: #ffffff;
+            --orbit-sphere: #444444; /* Dark grey/black with shading */
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            color: white;
+        }
+
+        #scene {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            perspective: 800px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* The Main White Sphere */
+        .central-sphere {
             position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 200px; height: 200px;
-            background: radial-gradient(circle at 30% 30%, #ffffff, #555555);
+            width: 60px;
+            height: 60px;
+            background: radial-gradient(circle at 30% 30%, #ffffff, #888);
             border-radius: 50%;
-            animation: spin 8s linear forwards;
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.2);
+            animation: spin 4s linear infinite;
+            z-index: 2;
         }
-        #message {
+
+        /* Orbit Container */
+        .orbit-system {
             position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            color: white; font-family: sans-serif; font-size: 2rem;
-            display: none;
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d;
+            animation: rotateScene 10s linear infinite;
         }
-        canvas { display: block; }
-        @keyframes spin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(720deg); } }
+
+        /* Individual Orbiting Spheres */
+        .orbiter {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 18px;
+            height: 18px;
+            margin-top: -9px;
+            margin-left: -9px;
+            background: radial-gradient(circle at 30% 30%, #555, #000);
+            border-radius: 50%;
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        /* Finished Text */
+        #status-text {
+            position: absolute;
+            bottom: -60px;
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            opacity: 0.8;
+        }
+
+        @keyframes spin {
+            from { transform: rotateY(0deg); }
+            to { transform: rotateY(360deg); }
+        }
+
+        @keyframes rotateScene {
+            from { transform: rotateX(60deg) rotateZ(0deg); }
+            to { transform: rotateX(60deg) rotateZ(360deg); }
+        }
     </style>
 </head>
 <body>
 
-    <div id="sphere"></div>
-    <div id="message">sphere loaded</div>
+    <div id="scene">
+        <div class="central-sphere"></div>
+        <div class="orbit-system" id="orbit-system">
+            </div>
+        <div id="status-text">Loading...</div>
+    </div>
 
-    <script type="importmap">
-        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
-    </script>
+    <script>
+        const orbitSystem = document.getElementById('orbit-system');
+        const statusText = document.getElementById('status-text');
+        const totalTime = 8; // seconds
+        const radius = 100; // orbit distance
 
-    <script type="module">
-        import * as THREE from 'three';
-
-        const sphere = document.getElementById('sphere');
-        const message = document.getElementById('message');
-
-        // Step 1: Animation sequence
-        setTimeout(() => {
-            sphere.style.display = 'none';
-            message.style.display = 'block';
-            setTimeout(() => {
-                message.style.display = 'none';
-                initVoxelScene();
-            }, 2000);
-        }, 8000);
-
-        // Step 2: The 3D Scene
-        function initVoxelScene() {
-            const scene = new THREE.Scene();
-            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            const renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.body.appendChild(renderer.domElement);
-
-            // Light
-            const light = new THREE.DirectionalLight(0xffffff, 1);
-            light.position.set(1, 1, 1);
-            scene.add(light);
-            scene.add(new THREE.AmbientLight(0x404040));
-
-            // Camera inside the cube
-            camera.position.set(0, 0, 0);
-
-            // Geometry and Material (Green cube with black outline)
-            const geometry = new THREE.BoxGeometry(1, 1, 1);
-            // Create a custom material that looks like green with a dark border
-            const material = new THREE.MeshPhongMaterial({ color: 0x00ff00, flatShading: true });
+        // Create 8 spheres
+        const spheres = [];
+        for (let i = 0; i < totalTime; i++) {
+            const orbiter = document.createElement('div');
+            orbiter.className = 'orbiter';
             
-            // InstancedMesh for performance
-            const gridSize = 64;
-            const count = 23816; // Number of cubes on the shell
-            const mesh = new THREE.InstancedMesh(geometry, material, count);
-            const matrix = new THREE.Matrix4();
+            // Calculate position in circle
+            const angle = (i / totalTime) * (Math.PI * 2);
+            const x = Math.cos(angle) * radius;
+            const y = Math.sin(angle) * radius;
             
-            let index = 0;
-            const offset = gridSize / 2;
-
-            for (let x = 0; x < gridSize; x++) {
-                for (let y = 0; y < gridSize; y++) {
-                    for (let z = 0; z < gridSize; z++) {
-                        // Only add cubes if they are on the shell (hollow center)
-                        if (x === 0 || x === gridSize - 1 || y === 0 || y === gridSize - 1 || z === 0 || z === gridSize - 1) {
-                            matrix.setPosition(x - offset, y - offset, z - offset);
-                            mesh.setMatrixAt(index++, matrix);
-                        }
-                    }
-                }
-            }
-            scene.add(mesh);
-
-            // Simple "Black Outline" via wireframe overlay
-            const wireframe = new THREE.WireframeGeometry(geometry);
-            const lineMaterial = new THREE.LineBasicMaterial({ color: 0x000000 });
-            const line = new THREE.LineSegments(wireframe, lineMaterial);
-            // Note: In a real app, you'd apply this to the instances or use a texture. 
-            // For simplicity, this acts as the "black outline" reference.
-            scene.add(line); 
-
-            function animate() {
-                requestAnimationFrame(animate);
-                camera.rotation.y += 0.005; // Gentle rotation to see the hollow interior
-                renderer.render(scene, camera);
-            }
-            animate();
+            orbiter.style.transform = `translate3d(${x}px, ${y}px, 0px)`;
+            orbitSystem.appendChild(orbiter);
+            spheres.push(orbiter);
         }
+
+        let secondsLeft = totalTime;
+
+        const countdown = setInterval(() => {
+            secondsLeft--;
+
+            // Remove one sphere each second
+            if (spheres.length > 0) {
+                const removed = spheres.pop();
+                removed.style.opacity = '0';
+                removed.style.transform += ' scale(0)';
+            }
+
+            if (secondsLeft <= 0) {
+                clearInterval(countdown);
+                statusText.innerText = "Sphere Loaded";
+                statusText.style.color = "#4bb543"; // Success green
+                statusText.style.fontWeight = "bold";
+            }
+        }, 1000);
     </script>
 </body>
 </html>
