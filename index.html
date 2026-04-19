@@ -2,253 +2,63 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JS Voxel World</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spinning Sphere</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: sans-serif; user-select: none; }
-        canvas { display: block; }
-        #ui { position: absolute; top: 10px; left: 10px; color: white; text-shadow: 1px 1px 2px black; pointer-events: none; }
-        
-        /* Mobile Controls */
-        .controls { position: absolute; bottom: 20px; width: 100%; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; pointer-events: none; }
-        .btn { width: 60px; height: 60px; background: rgba(255,255,255,0.3); border-radius: 10px; display: flex; align-items: center; justify-content: center; pointer-events: auto; touch-action: none; font-weight: bold; color: white; }
-        .d-pad { display: grid; grid-template-columns: repeat(3, 60px); gap: 5px; }
-        .actions { display: grid; grid-template-columns: repeat(2, 60px); gap: 10px; }
-        #crosshair { position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; border: 2px solid white; transform: translate(-50%, -50%); pointer-events: none; }
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #1a1a1a;
+            font-family: sans-serif;
+            color: white;
+        }
+
+        #sphere {
+            width: 200px;
+            height: 200px;
+            /* Radial gradient makes the sphere look 3D and highlights the rotation */
+            background: radial-gradient(circle at 30% 30%, #ffffff, #cccccc, #555555);
+            border-radius: 50%;
+            animation: spin 8s linear forwards;
+        }
+
+        #message {
+            display: none;
+            font-size: 2rem;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 1s ease-in;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(720deg); } /* Rotates twice over 8 seconds */
+        }
     </style>
 </head>
 <body>
 
-<div id="ui">
-    <div>Block: Left-Click (Break) | Right-Click (Place)</div>
-    <div>Key 'H': Toggle Hitboxes | Key 'M': Spawn Mob</div>
-</div>
-<div id="crosshair"></div>
+    <div id="sphere"></div>
+    <div id="message">sphere loaded</div>
 
-<div class="controls">
-    <div class="d-pad">
-        <div></div><div class="btn" id="btn-up">W</div><div></div>
-        <div class="btn" id="btn-left">A</div><div class="btn" id="btn-down">S</div><div class="btn" id="btn-right">D</div>
-    </div>
-    <div class="actions">
-        <div class="btn" id="btn-jump">JUMP</div>
-        <div class="btn" id="btn-spawn">MOB</div>
-        <div class="btn" id="btn-hitbox">BOX</div>
-        <div class="btn" id="btn-place">PLACE</div>
-    </div>
-</div>
-
-<script type="importmap">
-    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
-</script>
-
-<script type="module">
-    import * as THREE from 'three';
-
-    // --- Configuration ---
-    const WORLD_SIZE = 64;
-    const BLOCK_SIZE = 1;
-    const MOBS = [];
-    let showHitboxes = false;
-    let isFlying = false;
-    let lastJumpTime = 0;
-
-    // --- Setup Scene ---
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87CEEB);
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: false });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-    scene.add(ambientLight);
-    const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    sunLight.position.set(50, 100, 50);
-    scene.add(sunLight);
-
-    // --- Textures & Materials ---
-    const loader = new THREE.TextureLoader();
-    const mat = (color) => new THREE.MeshLambertMaterial({ color });
-    const materials = {
-        grass: mat(0x559944),
-        dirt: mat(0x8B4513),
-        stone: mat(0x808080),
-        wood: mat(0x5D4037),
-        leaves: mat(0x2E7D32),
-        door: mat(0xFFD54F),
-        mob: mat(0xFF5555)
-    };
-
-    // --- World Generation ---
-    const worldBlocks = new Map();
-    const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-
-    function addBlock(x, y, z, type) {
-        const mesh = new THREE.Mesh(boxGeo, materials[type]);
-        mesh.position.set(x, y, z);
-        scene.add(mesh);
-        worldBlocks.set(`${x},${y},${z}`, { mesh, type });
-    }
-
-    for (let x = 0; x < WORLD_SIZE; x++) {
-        for (let z = 0; z < WORLD_SIZE; z++) {
-            addBlock(x, 0, z, 'stone');
-            addBlock(x, 1, z, 'stone');
-            addBlock(x, 2, z, 'dirt');
-            addBlock(x, 3, z, 'dirt');
-            addBlock(x, 4, z, 'grass');
-
-            // Tree Spawning
-            if (Math.random() < 0.01) {
-                for (let h = 1; h <= 3; h++) addBlock(x, 4 + h, z, 'wood');
-                addBlock(x, 8, z, 'leaves');
-                addBlock(x, 8, z+1, 'leaves');
-                addBlock(x, 8, z-1, 'leaves');
-            }
-        }
-    }
-
-    // --- Player Logic ---
-    const player = {
-        pos: new THREE.Vector3(32, 10, 32),
-        vel: new THREE.Vector3(),
-        height: 1.8,
-        onGround: false
-    };
-    camera.position.copy(player.pos);
-
-    // --- Input Handling ---
-    const keys = {};
-    window.addEventListener('keydown', (e) => {
-        keys[e.code] = true;
-        if (e.code === 'KeyH') toggleHitboxes();
-        if (e.code === 'KeyM') spawnMob();
-        if (e.code === 'Space') handleJump();
-    });
-    window.addEventListener('keyup', (e) => keys[e.code] = false);
-
-    function handleJump() {
-        const now = performance.now();
-        if (now - lastJumpTime < 300) isFlying = !isFlying;
-        lastJumpTime = now;
-        if (!isFlying && player.onGround) player.vel.y = 0.15;
-    }
-
-    // Mobile buttons
-    document.getElementById('btn-jump').addEventListener('touchstart', handleJump);
-    document.getElementById('btn-spawn').addEventListener('touchstart', spawnMob);
-    document.getElementById('btn-hitbox').addEventListener('touchstart', toggleHitboxes);
-
-    // --- Mobs ---
-    function spawnMob() {
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.8, 0.8), materials.mob);
-        mesh.position.set(player.pos.x + 2, 6, player.pos.z + 2);
-        const helper = new THREE.BoxHelper(mesh, 0xff0000);
-        helper.visible = showHitboxes;
-        scene.add(mesh);
-        scene.add(helper);
-        MOBS.push({ mesh, helper, vel: new THREE.Vector3(), timer: 0, dir: new THREE.Vector3() });
-    }
-
-    function toggleHitboxes() {
-        showHitboxes = !showHitboxes;
-        MOBS.forEach(m => m.helper.visible = showHitboxes);
-    }
-
-    // --- Collision & Physics ---
-    function checkCollision(pos) {
-        const bx = Math.round(pos.x);
-        const by = Math.round(pos.y);
-        const bz = Math.round(pos.z);
-        return worldBlocks.has(`${bx},${by},${bz}`);
-    }
-
-    // --- Game Loop ---
-    let lastTime = performance.now();
-    function animate() {
-        requestAnimationFrame(animate);
-        const now = performance.now();
-        const delta = (now - lastTime) / 1000;
-        lastTime = now;
-
-        // Player Movement
-        const speed = keys['ShiftLeft'] ? 0.2 : 0.1;
-        const move = new THREE.Vector3();
-        if (keys['KeyW'] || document.getElementById('btn-up').active) move.z -= 1;
-        if (keys['KeyS'] || document.getElementById('btn-down').active) move.z += 1;
-        if (keys['KeyA'] || document.getElementById('btn-left').active) move.x -= 1;
-        if (keys['KeyD'] || document.getElementById('btn-right').active) move.x += 1;
-        move.applyQuaternion(camera.quaternion).normalize().multiplyScalar(speed);
-        
-        if (isFlying) {
-            if (keys['Space']) player.pos.y += 0.1;
-            if (keys['ShiftLeft']) player.pos.y -= 0.1;
-            player.vel.y = 0;
-        } else {
-            player.vel.y -= 0.005; // Gravity
-        }
-
-        player.pos.add(move);
-        player.pos.y += player.vel.y;
-
-        // Simple Floor Collision
-        if (player.pos.y < 5.8) {
-            player.pos.y = 5.8;
-            player.vel.y = 0;
-            player.onGround = true;
-        } else {
-            player.onGround = false;
-        }
-
-        camera.position.copy(player.pos);
-
-        // Mob Logic
-        MOBS.forEach(mob => {
-            mob.timer -= delta;
-            if (mob.timer <= 0) {
-                mob.timer = 2 + Math.random() * 3;
-                mob.dir.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
-            }
+    <script>
+        // Set the timer to match the 8s animation
+        setTimeout(() => {
+            const sphere = document.getElementById('sphere');
+            const message = document.getElementById('message');
             
-            const nextPos = mob.mesh.position.clone().add(mob.dir.clone().multiplyScalar(0.02));
-            if (checkCollision(nextPos)) {
-                mob.vel.y = 0.1; // Jump if obstacle
-            }
+            // Hide the sphere and show the text
+            sphere.style.display = 'none';
+            message.style.display = 'block';
             
-            mob.mesh.position.add(mob.dir.clone().multiplyScalar(0.02));
-            mob.mesh.position.y += mob.vel.y;
-            mob.vel.y -= 0.005;
-            
-            if (mob.mesh.position.y < 5) {
-                mob.mesh.position.y = 5;
-                mob.vel.y = 0;
-            }
-            mob.helper.update();
-        });
-
-        renderer.render(scene, camera);
-    }
-
-    // Touch support for D-Pad
-    ['up','down','left','right'].forEach(id => {
-        const el = document.getElementById('btn-'+id);
-        el.addEventListener('touchstart', () => el.active = true);
-        el.addEventListener('touchend', () => el.active = false);
-    });
-
-    // Pointer Lock for PC
-    document.body.addEventListener('mousedown', () => {
-        if (document.pointerLockElement !== document.body) document.body.requestPointerLock();
-    });
-    window.addEventListener('mousemove', (e) => {
-        if (document.pointerLockElement === document.body) {
-            camera.rotation.y -= e.movementX * 0.002;
-            camera.rotation.x -= e.movementY * 0.002;
-        }
-    });
-
-    animate();
-</script>
+            // Fade in the text
+            setTimeout(() => {
+                message.style.opacity = '1';
+            }, 50);
+        }, 8000);
+    </script>
 </body>
 </html>
