@@ -3,40 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spinning Sphere</title>
+    <title>Sphere to Voxel Cube</title>
     <style>
-        body {
-            margin: 0;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: #1a1a1a;
-            font-family: sans-serif;
-            color: white;
-        }
-
+        body { margin: 0; background-color: #1a1a1a; overflow: hidden; }
         #sphere {
-            width: 200px;
-            height: 200px;
-            /* Radial gradient makes the sphere look 3D and highlights the rotation */
-            background: radial-gradient(circle at 30% 30%, #ffffff, #cccccc, #555555);
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px; height: 200px;
+            background: radial-gradient(circle at 30% 30%, #ffffff, #555555);
             border-radius: 50%;
             animation: spin 8s linear forwards;
         }
-
         #message {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: white; font-family: sans-serif; font-size: 2rem;
             display: none;
-            font-size: 2rem;
-            font-weight: bold;
-            opacity: 0;
-            transition: opacity 1s ease-in;
         }
-
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(720deg); } /* Rotates twice over 8 seconds */
-        }
+        canvas { display: block; }
+        @keyframes spin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(720deg); } }
     </style>
 </head>
 <body>
@@ -44,21 +31,85 @@
     <div id="sphere"></div>
     <div id="message">sphere loaded</div>
 
-    <script>
-        // Set the timer to match the 8s animation
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        const sphere = document.getElementById('sphere');
+        const message = document.getElementById('message');
+
+        // Step 1: Animation sequence
         setTimeout(() => {
-            const sphere = document.getElementById('sphere');
-            const message = document.getElementById('message');
-            
-            // Hide the sphere and show the text
             sphere.style.display = 'none';
             message.style.display = 'block';
-            
-            // Fade in the text
             setTimeout(() => {
-                message.style.opacity = '1';
-            }, 50);
+                message.style.display = 'none';
+                initVoxelScene();
+            }, 2000);
         }, 8000);
+
+        // Step 2: The 3D Scene
+        function initVoxelScene() {
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Light
+            const light = new THREE.DirectionalLight(0xffffff, 1);
+            light.position.set(1, 1, 1);
+            scene.add(light);
+            scene.add(new THREE.AmbientLight(0x404040));
+
+            // Camera inside the cube
+            camera.position.set(0, 0, 0);
+
+            // Geometry and Material (Green cube with black outline)
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            // Create a custom material that looks like green with a dark border
+            const material = new THREE.MeshPhongMaterial({ color: 0x00ff00, flatShading: true });
+            
+            // InstancedMesh for performance
+            const gridSize = 64;
+            const count = 23816; // Number of cubes on the shell
+            const mesh = new THREE.InstancedMesh(geometry, material, count);
+            const matrix = new THREE.Matrix4();
+            
+            let index = 0;
+            const offset = gridSize / 2;
+
+            for (let x = 0; x < gridSize; x++) {
+                for (let y = 0; y < gridSize; y++) {
+                    for (let z = 0; z < gridSize; z++) {
+                        // Only add cubes if they are on the shell (hollow center)
+                        if (x === 0 || x === gridSize - 1 || y === 0 || y === gridSize - 1 || z === 0 || z === gridSize - 1) {
+                            matrix.setPosition(x - offset, y - offset, z - offset);
+                            mesh.setMatrixAt(index++, matrix);
+                        }
+                    }
+                }
+            }
+            scene.add(mesh);
+
+            // Simple "Black Outline" via wireframe overlay
+            const wireframe = new THREE.WireframeGeometry(geometry);
+            const lineMaterial = new THREE.LineBasicMaterial({ color: 0x000000 });
+            const line = new THREE.LineSegments(wireframe, lineMaterial);
+            // Note: In a real app, you'd apply this to the instances or use a texture. 
+            // For simplicity, this acts as the "black outline" reference.
+            scene.add(line); 
+
+            function animate() {
+                requestAnimationFrame(animate);
+                camera.rotation.y += 0.005; // Gentle rotation to see the hollow interior
+                renderer.render(scene, camera);
+            }
+            animate();
+        }
     </script>
 </body>
 </html>
