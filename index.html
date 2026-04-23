@@ -2,143 +2,136 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Sphere Loader</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Cheese Man</title>
     <style>
-        :root {
-            --bg-color: #0a0a0a;
-            --primary-sphere: #ffffff;
-            --orbit-sphere: #444444; /* Dark grey/black with shading */
-        }
-
-        body {
-            margin: 0;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: var(--bg-color);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            overflow: hidden;
-            color: white;
-        }
-
-        #scene {
-            position: relative;
-            width: 300px;
-            height: 300px;
-            perspective: 800px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        /* The Main White Sphere */
-        .central-sphere {
-            position: absolute;
-            width: 60px;
-            height: 60px;
-            background: radial-gradient(circle at 30% 30%, #ffffff, #888);
-            border-radius: 50%;
-            box-shadow: 0 0 30px rgba(255, 255, 255, 0.2);
-            animation: spin 4s linear infinite;
-            z-index: 2;
-        }
-
-        /* Orbit Container */
-        .orbit-system {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            transform-style: preserve-3d;
-            animation: rotateScene 10s linear infinite;
-        }
-
-        /* Individual Orbiting Spheres */
-        .orbiter {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 18px;
-            height: 18px;
-            margin-top: -9px;
-            margin-left: -9px;
-            background: radial-gradient(circle at 30% 30%, #555, #000);
-            border-radius: 50%;
-            transition: opacity 0.5s ease, transform 0.5s ease;
-        }
-
-        /* Finished Text */
-        #status-text {
-            position: absolute;
-            bottom: -60px;
-            font-size: 1.2rem;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            opacity: 0.8;
-        }
-
-        @keyframes spin {
-            from { transform: rotateY(0deg); }
-            to { transform: rotateY(360deg); }
-        }
-
-        @keyframes rotateScene {
-            from { transform: rotateX(60deg) rotateZ(0deg); }
-            to { transform: rotateX(60deg) rotateZ(360deg); }
+        body { margin: 0; overflow: hidden; background-color: #f0f0f0; touch-action: none; }
+        #instructions {
+            position: absolute; top: 10px; left: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px; border-radius: 8px;
+            font-family: sans-serif; pointer-events: none;
         }
     </style>
 </head>
 <body>
-
-    <div id="scene">
-        <div class="central-sphere"></div>
-        <div class="orbit-system" id="orbit-system">
-            </div>
-        <div id="status-text">Loading...</div>
+    <div id="instructions">
+        <b>3D Cheese Man</b><br>
+        Touch/Click & Drag to Rotate View<br>
+        Pinch to Zoom
     </div>
 
-    <script>
-        const orbitSystem = document.getElementById('orbit-system');
-        const statusText = document.getElementById('status-text');
-        const totalTime = 8; // seconds
-        const radius = 100; // orbit distance
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
 
-        // Create 8 spheres
-        const spheres = [];
-        for (let i = 0; i < totalTime; i++) {
-            const orbiter = document.createElement('div');
-            orbiter.className = 'orbiter';
-            
-            // Calculate position in circle
-            const angle = (i / totalTime) * (Math.PI * 2);
-            const x = Math.cos(angle) * radius;
-            const y = Math.sin(angle) * radius;
-            
-            orbiter.style.transform = `translate3d(${x}px, ${y}px, 0px)`;
-            orbitSystem.appendChild(orbiter);
-            spheres.push(orbiter);
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- Setup Scene ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xeeeeee);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio); // Sharp on iPad Retina screens
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        camera.position.set(0, 2, 5);
+        controls.update();
+
+        // --- Lights ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 10, 7);
+        scene.add(directionalLight);
+
+        // --- Cheese Material ---
+        const cheeseMat = new THREE.MeshStandardMaterial({ color: 0xffd966 });
+
+        // Helper function for body parts
+        function createBox(w, h, d, x, y, z) {
+            const geom = new THREE.BoxGeometry(w, h, d);
+            const mesh = new THREE.Mesh(geom, cheeseMat);
+            mesh.position.set(x, y, z);
+            return mesh;
         }
 
-        let secondsLeft = totalTime;
+        // --- Character Construction ---
+        const group = new THREE.Group(); // Whole character
 
-        const countdown = setInterval(() => {
-            secondsLeft--;
+        // Torso
+        const torso = createBox(1.2, 1.5, 0.6, 0, 0, 0);
+        group.add(torso);
 
-            // Remove one sphere each second
-            if (spheres.length > 0) {
-                const removed = spheres.pop();
-                removed.style.opacity = '0';
-                removed.style.transform += ' scale(0)';
-            }
+        // Head (Wedge-ish/Flat box)
+        const head = createBox(1.4, 0.8, 0.8, 0, 1.2, 0);
+        torso.add(head);
 
-            if (secondsLeft <= 0) {
-                clearInterval(countdown);
-                statusText.innerText = "Sphere Loaded";
-                statusText.style.color = "#4bb543"; // Success green
-                statusText.style.fontWeight = "bold";
-            }
-        }, 1000);
+        // Eyes (Small black boxes)
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.1), eyeMat);
+        eyeL.position.set(-0.3, 0.1, 0.4);
+        const eyeR = eyeL.clone();
+        eyeR.position.set(0.3, 0.1, 0.4);
+        head.add(eyeL, eyeR);
+
+        // Arms
+        const armL = createBox(0.4, 1.2, 0.4, -0.9, 0.1, 0);
+        const armR = createBox(0.4, 1.2, 0.4, 0.9, 0.1, 0);
+        torso.add(armL, armR);
+
+        // Hands
+        const handL = createBox(0.45, 0.3, 0.45, 0, -0.7, 0);
+        const handR = createBox(0.45, 0.3, 0.45, 0, -0.7, 0);
+        armL.add(handL);
+        armR.add(handR);
+
+        // Legs
+        const legL = createBox(0.5, 1.2, 0.5, -0.35, -1.4, 0);
+        const legR = createBox(0.5, 1.2, 0.5, 0.35, -1.4, 0);
+        torso.add(legL, legR);
+
+        // Feet
+        const footL = createBox(0.55, 0.2, 0.8, 0, -0.7, 0.15);
+        const footR = createBox(0.55, 0.2, 0.8, 0, -0.7, 0.15);
+        legL.add(footL);
+        legR.add(footR);
+
+        scene.add(group);
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // subtle idle "breathing" movement
+            const time = Date.now() * 0.002;
+            group.position.y = Math.sin(time) * 0.05;
+            
+            // Example of moving individual parts
+            armL.rotation.x = Math.sin(time) * 0.5;
+            armR.rotation.x = -Math.sin(time) * 0.5;
+            head.rotation.y = Math.sin(time * 0.5) * 0.2;
+
+            renderer.render(scene, camera);
+        }
+
+        // --- Handle Resize ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
     </script>
 </body>
 </html>
