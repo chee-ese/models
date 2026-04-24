@@ -3,24 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D Cheese Man</title>
+    <title>Cheese Man Poseable Model</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #f0f0f0; touch-action: none; }
-        #instructions {
-            position: absolute; top: 10px; left: 10px;
-            background: rgba(255, 255, 255, 0.8);
-            padding: 10px; border-radius: 8px;
-            font-family: sans-serif; pointer-events: none;
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #f0f0f0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+        #canvas-container {
+            flex-grow: 1;
+            height: 100%;
+            position: relative;
+        }
+        #controls-panel {
+            width: 320px;
+            background: rgba(255, 255, 255, 0.95);
+            border-left: 2px solid #ddd;
+            padding: 20px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch; /* Smooth scrolling for iPad */
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        h2 { margin-top: 0; font-size: 20px; color: #333; }
+        .control-group { display: flex; flex-direction: column; gap: 5px; }
+        .control-group label { font-size: 14px; font-weight: 500; color: #555; display: flex; justify-content: space-between;}
+        input[type=range] {
+            width: 100%;
+            margin: 5px 0;
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #e3ba50;
+            cursor: pointer;
+            margin-top: -10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #ddd;
+            border-radius: 3px;
+        }
+        /* Responsive adjustments for iPad Portrait */
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            #controls-panel { width: 100%; height: 40vh; border-left: none; border-top: 2px solid #ddd; box-sizing: border-box; }
+            #canvas-container { height: 60vh; }
         }
     </style>
-</head>
-<body>
-    <div id="instructions">
-        <b>3D Cheese Man</b><br>
-        Touch/Click & Drag to Rotate View<br>
-        Pinch to Zoom
-    </div>
-
     <script type="importmap">
         {
             "imports": {
@@ -29,108 +72,255 @@
             }
         }
     </script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+    <div id="controls-panel">
+        <h2>Pose Controls</h2>
+        </div>
 
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        // --- Setup Scene ---
+        // --- 1. SETUP SCENE, CAMERA, RENDERER ---
+        const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xeeeeee);
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        scene.background = new THREE.Color('#ffffff');
+
+        const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+        camera.position.set(0, 5, 30);
+
         const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio); // Sharp on iPad Retina screens
-        document.body.appendChild(renderer.domElement);
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.shadowMap.enabled = true;
+        container.appendChild(renderer.domElement);
 
         const controls = new OrbitControls(camera, renderer.domElement);
-        camera.position.set(0, 2, 5);
-        controls.update();
+        controls.enableDamping = true;
+        controls.target.set(0, 2, 0);
 
-        // --- Lights ---
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        // --- 2. LIGHTING ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(5, 10, 7);
-        scene.add(directionalLight);
 
-        // --- Cheese Material ---
-        const cheeseMat = new THREE.MeshStandardMaterial({ color: 0xffd966 });
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
 
-        // Helper function for body parts
-        function createBox(w, h, d, x, y, z) {
-            const geom = new THREE.BoxGeometry(w, h, d);
-            const mesh = new THREE.Mesh(geom, cheeseMat);
-            mesh.position.set(x, y, z);
+        // --- 3. GENERATE CHEESE TEXTURE ---
+        function createCheeseTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+
+            // Base cheese color
+            ctx.fillStyle = '#FCE28A'; 
+            ctx.fillRect(0, 0, 1024, 1024);
+
+            // Cheese holes
+            for (let i = 0; i < 60; i++) {
+                const x = Math.random() * 1024;
+                const y = Math.random() * 1024;
+                const r = 15 + Math.random() * 45;
+
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fillStyle = '#D6A13B'; // Darker inner hole
+                ctx.fill();
+
+                // Hole shadow for depth
+                ctx.beginPath();
+                ctx.arc(x - r*0.2, y - r*0.2, r * 0.8, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                ctx.fill();
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            return texture;
+        }
+
+        const cheeseTexture = createCheeseTexture();
+        const cheeseMaterial = new THREE.MeshLambertMaterial({ map: cheeseTexture });
+
+        // --- 4. BUILD THE RIG (Hierarchy) ---
+        const character = new THREE.Group();
+        scene.add(character);
+
+        // A helper to create meshes and add them to groups to act as joints
+        function createLimb(width, height, depth, yOffset) {
+            const geo = new THREE.BoxGeometry(width, height, depth);
+            const mesh = new THREE.Mesh(geo, cheeseMaterial);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.position.y = yOffset;
             return mesh;
         }
 
-        // --- Character Construction ---
-        const group = new THREE.Group(); // Whole character
+        // TORSO
+        const torsoGroup = new THREE.Group();
+        torsoGroup.position.y = 7;
+        character.add(torsoGroup);
+        const torsoMesh = createLimb(6, 8, 3, 0);
+        torsoGroup.add(torsoMesh);
 
-        // Torso
-        const torso = createBox(1.2, 1.5, 0.6, 0, 0, 0);
-        group.add(torso);
+        // HEAD
+        const headJoint = new THREE.Group();
+        headJoint.position.y = 4.5; // Top of torso
+        torsoGroup.add(headJoint);
+        const headMesh = createLimb(8, 4.5, 3.5, 2.25);
+        headJoint.add(headMesh);
 
-        // Head (Wedge-ish/Flat box)
-        const head = createBox(1.4, 0.8, 0.8, 0, 1.2, 0);
-        torso.add(head);
+        // FACE (Eyes & Mouth)
+        const eyeGeo = new THREE.SphereGeometry(0.4, 16, 16);
+        const blackMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const leftEye = new THREE.Mesh(eyeGeo, blackMat);
+        leftEye.position.set(-1.5, 2.5, 1.8);
+        headJoint.add(leftEye);
+        const rightEye = new THREE.Mesh(eyeGeo, blackMat);
+        rightEye.position.set(1.5, 2.5, 1.8);
+        headJoint.add(rightEye);
+        
+        const mouthGeo = new THREE.BoxGeometry(1.5, 0.15, 0.2);
+        const mouth = new THREE.Mesh(mouthGeo, blackMat);
+        mouth.position.set(0, 1.2, 1.8);
+        headJoint.add(mouth);
 
-        // Eyes (Small black boxes)
-        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-        const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.1), eyeMat);
-        eyeL.position.set(-0.3, 0.1, 0.4);
-        const eyeR = eyeL.clone();
-        eyeR.position.set(0.3, 0.1, 0.4);
-        head.add(eyeL, eyeR);
+        // LEFT ARM
+        const lShoulder = new THREE.Group();
+        lShoulder.position.set(-3.5, 3.5, 0); // Upper left of torso
+        torsoGroup.add(lShoulder);
+        const lUpperArm = createLimb(1.5, 4, 1.5, -2);
+        lShoulder.add(lUpperArm);
 
-        // Arms
-        const armL = createBox(0.4, 1.2, 0.4, -0.9, 0.1, 0);
-        const armR = createBox(0.4, 1.2, 0.4, 0.9, 0.1, 0);
-        torso.add(armL, armR);
+        const lElbow = new THREE.Group();
+        lElbow.position.set(0, -4, 0);
+        lShoulder.add(lElbow);
+        const lLowerArm = createLimb(1.4, 4, 1.4, -2);
+        lElbow.add(lLowerArm);
 
-        // Hands
-        const handL = createBox(0.45, 0.3, 0.45, 0, -0.7, 0);
-        const handR = createBox(0.45, 0.3, 0.45, 0, -0.7, 0);
-        armL.add(handL);
-        armR.add(handR);
+        // RIGHT ARM
+        const rShoulder = new THREE.Group();
+        rShoulder.position.set(3.5, 3.5, 0); // Upper right of torso
+        torsoGroup.add(rShoulder);
+        const rUpperArm = createLimb(1.5, 4, 1.5, -2);
+        rShoulder.add(rUpperArm);
 
-        // Legs
-        const legL = createBox(0.5, 1.2, 0.5, -0.35, -1.4, 0);
-        const legR = createBox(0.5, 1.2, 0.5, 0.35, -1.4, 0);
-        torso.add(legL, legR);
+        const rElbow = new THREE.Group();
+        rElbow.position.set(0, -4, 0);
+        rShoulder.add(rElbow);
+        const rLowerArm = createLimb(1.4, 4, 1.4, -2);
+        rElbow.add(rLowerArm);
 
-        // Feet
-        const footL = createBox(0.55, 0.2, 0.8, 0, -0.7, 0.15);
-        const footR = createBox(0.55, 0.2, 0.8, 0, -0.7, 0.15);
-        legL.add(footL);
-        legR.add(footR);
+        // LEFT LEG
+        const lHip = new THREE.Group();
+        lHip.position.set(-1.5, -4, 0); // Bottom left of torso
+        torsoGroup.add(lHip);
+        const lUpperLeg = createLimb(1.8, 4.5, 1.8, -2.25);
+        lHip.add(lUpperLeg);
 
-        scene.add(group);
+        const lKnee = new THREE.Group();
+        lKnee.position.set(0, -4.5, 0);
+        lHip.add(lKnee);
+        const lLowerLeg = createLimb(1.6, 4.5, 1.6, -2.25);
+        lKnee.add(lLowerLeg);
+        
+        const lFoot = createLimb(1.8, 1, 2.5, -4.5);
+        lFoot.position.z = 0.5;
+        lKnee.add(lFoot);
 
-        // --- Animation Loop ---
-        function animate() {
-            requestAnimationFrame(animate);
+        // RIGHT LEG
+        const rHip = new THREE.Group();
+        rHip.position.set(1.5, -4, 0); // Bottom right of torso
+        torsoGroup.add(rHip);
+        const rUpperLeg = createLimb(1.8, 4.5, 1.8, -2.25);
+        rHip.add(rUpperLeg);
 
-            // subtle idle "breathing" movement
-            const time = Date.now() * 0.002;
-            group.position.y = Math.sin(time) * 0.05;
+        const rKnee = new THREE.Group();
+        rKnee.position.set(0, -4.5, 0);
+        rHip.add(rKnee);
+        const rLowerLeg = createLimb(1.6, 4.5, 1.6, -2.25);
+        rKnee.add(rLowerLeg);
+
+        const rFoot = createLimb(1.8, 1, 2.5, -4.5);
+        rFoot.position.z = 0.5;
+        rKnee.add(rFoot);
+
+
+        // --- 5. UI CONTROLS FOR IPAD ---
+        const panel = document.getElementById('controls-panel');
+        
+        // Define all the movable joints
+        const jointConfig = [
+            { name: 'Head Turn (Y)', obj: headJoint, axis: 'y', min: -1.5, max: 1.5, default: 0 },
+            { name: 'Head Nod (X)', obj: headJoint, axis: 'x', min: -0.5, max: 0.5, default: 0 },
             
-            // Example of moving individual parts
-            armL.rotation.x = Math.sin(time) * 0.5;
-            armR.rotation.x = -Math.sin(time) * 0.5;
-            head.rotation.y = Math.sin(time * 0.5) * 0.2;
+            { name: 'Torso Lean (X)', obj: torsoGroup, axis: 'x', min: -0.5, max: 0.5, default: 0 },
+            { name: 'Torso Twist (Y)', obj: torsoGroup, axis: 'y', min: -1.0, max: 1.0, default: 0 },
 
-            renderer.render(scene, camera);
-        }
+            { name: 'Left Shoulder (X)', obj: lShoulder, axis: 'x', min: -3.14, max: 3.14, default: 0 },
+            { name: 'Left Shoulder (Z)', obj: lShoulder, axis: 'z', min: -0.5, max: 2.5, default: 0 },
+            { name: 'Left Elbow (X)', obj: lElbow, axis: 'x', min: -2.5, max: 0, default: 0 },
 
-        // --- Handle Resize ---
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            { name: 'Right Shoulder (X)', obj: rShoulder, axis: 'x', min: -3.14, max: 3.14, default: 0 },
+            { name: 'Right Shoulder (Z)', obj: rShoulder, axis: 'z', min: -2.5, max: 0.5, default: 0 },
+            { name: 'Right Elbow (X)', obj: rElbow, axis: 'x', min: -2.5, max: 0, default: 0 },
+
+            { name: 'Left Hip (X)', obj: lHip, axis: 'x', min: -2.0, max: 1.0, default: 0 },
+            { name: 'Left Knee (X)', obj: lKnee, axis: 'x', min: 0, max: 2.5, default: 0 },
+
+            { name: 'Right Hip (X)', obj: rHip, axis: 'x', min: -2.0, max: 1.0, default: 0 },
+            { name: 'Right Knee (X)', obj: rKnee, axis: 'x', min: 0, max: 2.5, default: 0 },
+        ];
+
+        // Generate sliders dynamically
+        jointConfig.forEach(config => {
+            const group = document.createElement('div');
+            group.className = 'control-group';
+            
+            const label = document.createElement('label');
+            label.innerText = config.name;
+            const valueSpan = document.createElement('span');
+            valueSpan.innerText = config.default.toFixed(2);
+            label.appendChild(valueSpan);
+
+            const slider = document.createElement('input');
+            slider.type = 'range';
+            slider.min = config.min;
+            slider.max = config.max;
+            slider.step = 0.01;
+            slider.value = config.default;
+
+            slider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                config.obj.rotation[config.axis] = val;
+                valueSpan.innerText = val.toFixed(2);
+            });
+
+            group.appendChild(label);
+            group.appendChild(slider);
+            panel.appendChild(group);
         });
 
+        // --- 6. RENDER LOOP & RESIZE ---
+        window.addEventListener('resize', () => {
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            renderer.setSize(width, height);
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
         animate();
     </script>
 </body>
